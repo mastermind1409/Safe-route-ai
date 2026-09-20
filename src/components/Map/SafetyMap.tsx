@@ -8,6 +8,7 @@ import RouteLayers from './RouteLayers';
 import MarkerLayers from './MarkerLayers';
 import UserMarker from './UserMarker';
 import MapControls from './MapControls';
+import { distanceToPolyline } from '../../utils/haversine';
 
 interface SafetyMapProps {
     mapRef: React.MutableRefObject<LeafletMap | null>;
@@ -34,12 +35,15 @@ export default function SafetyMap({
     onMapClick,
     onSelectRoute,
 }: SafetyMapProps) {
-    // Collect all hazards and safe hubs from all routes + extras
+    const selectedRoute = routes.find((route) => route.id === selectedRouteId);
+    const routeCoordinates = selectedRoute?.coordinates ?? [];
     const allHazards: Hazard[] = [
-        ...routes.flatMap((r) => r.hazards),
-        ...extraHazards,
+        ...(selectedRoute?.hazards ?? []),
+        ...extraHazards.filter(
+            (hazard) => distanceToPolyline(hazard.position, routeCoordinates) <= 180
+        ),
     ];
-    const allSafeHubs: SafeHub[] = routes.flatMap((r) => r.safeHubs);
+    const allSafeHubs: SafeHub[] = selectedRoute?.safeHubs ?? [];
 
     return (
         <div className="flex-1 relative">

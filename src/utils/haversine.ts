@@ -42,6 +42,13 @@ export function findNearbyHazardIds(
         .map((h) => h.id);
 }
 
+export function distanceToPolyline(position: Coordinates, coords: Coordinates[]): number {
+    return coords.reduce(
+        (closest, coordinate) => Math.min(closest, haversineDistance(position, coordinate)),
+        Number.POSITIVE_INFINITY
+    );
+}
+
 /**
  * Calculate the total polyline distance of a coordinate array in meters.
  */
