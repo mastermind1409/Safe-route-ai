@@ -59,6 +59,28 @@ interface PhotonResult {
   };
 }
 
+const commonLocationCorrections: Record<string, string> = {
+  chenai: 'Chennai',
+  chennaii: 'Chennai',
+  banglore: 'Bangalore',
+  bengaluruu: 'Bengaluru',
+  hydrabad: 'Hyderabad',
+  hyderbad: 'Hyderabad',
+  mumabi: 'Mumbai',
+  bombay: 'Mumbai',
+  delhii: 'Delhi',
+  kolkatta: 'Kolkata',
+  coimbatoree: 'Coimbatore',
+  pondybazaar: 'Pondy Bazaar, Chennai',
+};
+
+function correctedLocationQuery(value: string): string {
+  return value
+    .split(/\s*,\s*/)
+    .map((part) => commonLocationCorrections[part.trim().toLowerCase()] ?? part.trim())
+    .join(', ');
+}
+
 async function fetchWithTimeout(url: string): Promise<Response> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 8000);
@@ -73,7 +95,13 @@ async function geocodePlace(value: string): Promise<{ position: Coordinates; lab
   const coordinates = parseCoordinates(value);
   if (coordinates) return { position: coordinates, label: value };
 
-  const queries = [value, `${value}, India`];
+  const correctedValue = correctedLocationQuery(value);
+  const queries = [...new Set([
+    `${correctedValue}, India`,
+    correctedValue,
+    `${value}, India`,
+    value,
+  ])];
   for (const query of queries) {
     try {
       const response = await fetchWithTimeout(
@@ -96,7 +124,7 @@ async function geocodePlace(value: string): Promise<{ position: Coordinates; lab
 
   try {
     const response = await fetchWithTimeout(
-      `https://photon.komoot.io/api/?limit=1&lang=en&q=${encodeURIComponent(value)}`
+        `https://photon.komoot.io/api/?limit=1&lang=en&lat=20.5937&lon=78.9629&q=${encodeURIComponent(correctedValue)}`
     );
     if (response.ok) {
       const results = (await response.json()) as { features?: PhotonResult[] };
@@ -353,6 +381,8 @@ export default function App() {
         geocodePlace(originInput.trim()),
         geocodePlace(destinationInput.trim()),
       ]);
+      setOriginInput(origin.label);
+      setDestinationInput(destination.label);
       const steps = 24;
       const coordinates = Array.from({ length: steps + 1 }, (_, index) => {
         const ratio = index / steps;

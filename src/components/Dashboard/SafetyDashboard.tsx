@@ -295,10 +295,10 @@ export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboar
     };
 
     return (
-        <div className="flex-1 overflow-y-auto sidebar-scroll bg-canvas p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
+        <div className="h-full min-h-0 w-full overflow-y-auto sidebar-scroll bg-canvas p-4 sm:p-6">
+            <div className="mx-auto min-w-0 max-w-7xl space-y-6 pb-8">
                 {/* Page Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-lg font-bold text-slate-heading">
                             Civic Safety Analytics
@@ -307,7 +307,7 @@ export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboar
                             Ward-level infrastructure audit and incident analytics
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <button
                             onClick={exportCSV}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-border-light text-slate-body hover:bg-slate-50 transition-colors"
@@ -440,7 +440,7 @@ export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboar
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto">
+                    <div className="max-w-full overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-slate-50 text-xs font-semibold text-slate-muted uppercase tracking-wider">
