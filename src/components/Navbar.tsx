@@ -30,9 +30,6 @@ export default function Navbar({
                     <span className="text-sm font-bold text-slate-heading leading-tight tracking-tight">
                         SafeRoute AI
                     </span>
-                    <span className="text-[10px] text-slate-muted leading-tight">
-                        HACKDAY 1.0
-                    </span>
                 </div>
             </div>
 
