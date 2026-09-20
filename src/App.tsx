@@ -33,26 +33,87 @@ const HAZARD_PENALTIES: Record<string, number> = {
 
 function parseCoordinates(value: string): Coordinates | null {
   const parts = value.split(',').map((part) => Number(part.trim()));
-  return parts.length === 2 && parts.every((part) => Number.isFinite(part))
+  return parts.length === 2 &&
+    parts.every((part) => Number.isFinite(part)) &&
+    parts[0] >= -90 &&
+    parts[0] <= 90 &&
+    parts[1] >= -180 &&
+    parts[1] <= 180
     ? [parts[0], parts[1]]
     : null;
+}
+
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+}
+
+interface PhotonResult {
+  geometry: { coordinates: [number, number] };
+  properties: {
+    name?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  };
+}
+
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 async function geocodePlace(value: string): Promise<{ position: Coordinates; label: string }> {
   const coordinates = parseCoordinates(value);
   if (coordinates) return { position: coordinates, label: value };
 
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(value)}`
-  );
-  if (!response.ok) throw new Error('Location search failed');
-  const results = (await response.json()) as Array<{ lat: string; lon: string; display_name: string }>;
-  const result = results[0];
-  if (!result) throw new Error(`Could not find "${value}"`);
-  return {
-    position: [Number(result.lat), Number(result.lon)],
-    label: result.display_name.split(',').slice(0, 2).join(','),
-  };
+  const queries = [value, `${value}, India`];
+  for (const query of queries) {
+    try {
+      const response = await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&accept-language=en&q=${encodeURIComponent(query)}`
+      );
+      if (response.ok) {
+        const results = (await response.json()) as NominatimResult[];
+        const result = results[0];
+        if (result) {
+          return {
+            position: [Number(result.lat), Number(result.lon)],
+            label: result.display_name.split(',').slice(0, 3).join(','),
+          };
+        }
+      }
+    } catch {
+      // Try the secondary public geocoder below.
+    }
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `https://photon.komoot.io/api/?limit=1&lang=en&q=${encodeURIComponent(value)}`
+    );
+    if (response.ok) {
+      const results = (await response.json()) as { features?: PhotonResult[] };
+      const result = results.features?.[0];
+      if (result) {
+        const { name, city, state, country } = result.properties;
+        return {
+          position: [result.geometry.coordinates[1], result.geometry.coordinates[0]],
+          label: [name, city, state, country].filter(Boolean).slice(0, 3).join(', '),
+        };
+      }
+    }
+  } catch {
+    // Surface one actionable error instead of silently creating a bad route.
+  }
+
+  throw new Error(`Location not found. Try a nearby landmark, city, or "latitude, longitude".`);
 }
 
 export default function App() {
