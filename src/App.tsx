@@ -22,7 +22,7 @@ import HazardList from './components/Sidebar/HazardList';
 import ReportModal from './components/Modals/ReportModal';
 import SOSDrawer from './components/Modals/SOSDrawer';
 import Toast from './components/Common/Toast';
-import { MapPin, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
+import { MapPin, AlertTriangle, ChevronUp, ChevronDown, Search, LoaderCircle } from 'lucide-react';
 
 // Penalty lookup by hazard type
 const HAZARD_PENALTIES: Record<string, number> = {
@@ -30,6 +30,30 @@ const HAZARD_PENALTIES: Record<string, number> = {
   broken_streetlight: 8,
   harassment_concern: 25,
 };
+
+function parseCoordinates(value: string): Coordinates | null {
+  const parts = value.split(',').map((part) => Number(part.trim()));
+  return parts.length === 2 && parts.every((part) => Number.isFinite(part))
+    ? [parts[0], parts[1]]
+    : null;
+}
+
+async function geocodePlace(value: string): Promise<{ position: Coordinates; label: string }> {
+  const coordinates = parseCoordinates(value);
+  if (coordinates) return { position: coordinates, label: value };
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(value)}`
+  );
+  if (!response.ok) throw new Error('Location search failed');
+  const results = (await response.json()) as Array<{ lat: string; lon: string; display_name: string }>;
+  const result = results[0];
+  if (!result) throw new Error(`Could not find "${value}"`);
+  return {
+    position: [Number(result.lat), Number(result.lon)],
+    label: result.display_name.split(',').slice(0, 2).join(','),
+  };
+}
 
 export default function App() {
   // ─── Core State ───────────────────────────────────────────
@@ -65,6 +89,9 @@ export default function App() {
   // ─── Mobile sidebar ───────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('map');
+  const [originInput, setOriginInput] = useState('T. Nagar Bus Terminus, Chennai');
+  const [destinationInput, setDestinationInput] = useState('Pondy Bazaar Junction, Chennai');
+  const [isPlanningRoute, setIsPlanningRoute] = useState(false);
 
   // ─── Map Camera ────────────────────────────────────────────
   const [mapFlyTo, setMapFlyTo] = useState<Coordinates | null>(null);
@@ -252,6 +279,56 @@ export default function App() {
     setIsSimulating((prev) => !prev);
   }, []);
 
+  const handlePlanRoute = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!originInput.trim() || !destinationInput.trim()) {
+      addToast('Enter both an origin and destination to plan a route.', 'warning');
+      return;
+    }
+
+    setIsPlanningRoute(true);
+    try {
+      const [origin, destination] = await Promise.all([
+        geocodePlace(originInput.trim()),
+        geocodePlace(destinationInput.trim()),
+      ]);
+      const steps = 24;
+      const coordinates = Array.from({ length: steps + 1 }, (_, index) => {
+        const ratio = index / steps;
+        return [
+          origin.position[0] + (destination.position[0] - origin.position[0]) * ratio,
+          origin.position[1] + (destination.position[1] - origin.position[1]) * ratio,
+        ] as Coordinates;
+      });
+      const generatedRoute: Route = {
+        id: 'custom-route',
+        name: `${origin.label} to ${destination.label}`,
+        tag: 'Your route',
+        distance: Math.round(Math.hypot(
+          (destination.position[0] - origin.position[0]) * 111000,
+          (destination.position[1] - origin.position[1]) * 108000
+        )),
+        walkTime: Math.max(1, Math.round(coordinates.length * 0.7)),
+        coordinates,
+        safetyScore: 82,
+        hazards: [],
+        safeHubs: [],
+        lightingRatio: 0.78,
+        color: '#2563EB',
+        dashArray: undefined,
+        recommended: true,
+      };
+      setRoutes((previous) => [generatedRoute, ...previous.filter((route) => route.id !== generatedRoute.id)]);
+      setSelectedRouteId(generatedRoute.id);
+      setMapFlyTo([...origin.position]);
+      addToast('Your route is ready. Select another route below to compare.', 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Unable to plan this route.', 'warning');
+    } finally {
+      setIsPlanningRoute(false);
+    }
+  }, [addToast, destinationInput, originInput]);
+
   const handleShowHazardOnMap = useCallback((position: Coordinates) => {
     setMapFlyTo([...position]);
     setActiveTab('map');
@@ -297,16 +374,36 @@ export default function App() {
               <h3 className="text-xs font-semibold text-slate-heading uppercase tracking-wider mb-3">
                 Route Planner
               </h3>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  T. Nagar Bus Terminus
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-50 border border-red-200 text-sm text-red-800">
-                  <MapPin className="w-3.5 h-3.5" />
-                  Pondy Bazaar Junction
-                </div>
-              </div>
+              <form onSubmit={handlePlanRoute} className="space-y-2">
+                <label className="relative block">
+                  <span className="sr-only">Starting point</span>
+                  <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-600" />
+                  <input
+                    value={originInput}
+                    onChange={(event) => setOriginInput(event.target.value)}
+                    placeholder="Starting point or lat, lng"
+                    className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-9 py-2 text-sm text-slate-heading outline-none focus:border-brand-teal focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="relative block">
+                  <span className="sr-only">Destination</span>
+                  <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-brand-crimson" />
+                  <input
+                    value={destinationInput}
+                    onChange={(event) => setDestinationInput(event.target.value)}
+                    placeholder="Destination or lat, lng"
+                    className="w-full rounded-md border border-red-200 bg-red-50 px-9 py-2 text-sm text-slate-heading outline-none focus:border-brand-teal focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={isPlanningRoute}
+                  className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-teal px-3 py-2 text-sm font-semibold text-white hover:bg-brand-emerald disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isPlanningRoute ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {isPlanningRoute ? 'Finding route...' : 'Plan safe route'}
+                </button>
+              </form>
             </div>
 
             {/* Route Comparison Cards */}
@@ -354,6 +451,38 @@ export default function App() {
           </button>
           {sidebarOpen && (
             <div className="bg-canvas border-t border-border-light max-h-[55vh] overflow-y-auto sidebar-scroll p-4 space-y-4">
+              <form onSubmit={handlePlanRoute} className="space-y-2">
+                <label className="relative block">
+                  <span className="sr-only">Starting point</span>
+                  <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-emerald-600" />
+                  <input
+                    aria-label="Starting point"
+                    value={originInput}
+                    onChange={(event) => setOriginInput(event.target.value)}
+                    placeholder="Starting point or lat, lng"
+                    className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-9 py-2 text-sm text-slate-heading outline-none focus:border-brand-teal focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="relative block">
+                  <span className="sr-only">Destination</span>
+                  <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-brand-crimson" />
+                  <input
+                    aria-label="Destination"
+                    value={destinationInput}
+                    onChange={(event) => setDestinationInput(event.target.value)}
+                    placeholder="Destination or lat, lng"
+                    className="w-full rounded-md border border-red-200 bg-red-50 px-9 py-2 text-sm text-slate-heading outline-none focus:border-brand-teal focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={isPlanningRoute}
+                  className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-teal px-3 py-2 text-sm font-semibold text-white hover:bg-brand-emerald disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isPlanningRoute ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {isPlanningRoute ? 'Finding route...' : 'Plan safe route'}
+                </button>
+              </form>
               <div className="space-y-2">
                 {routes.map((route) => (
                   <RouteCard

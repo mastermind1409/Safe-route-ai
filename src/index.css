@@ -29,6 +29,22 @@ html, body, #root {
 .leaflet-container {
   height: 100%;
   width: 100%;
+  background: #dbeafe;
+  font-size: 16px;
+}
+
+.leaflet-control-zoom a {
+  width: 38px !important;
+  height: 38px !important;
+  line-height: 36px !important;
+  font-size: 24px !important;
+  font-weight: 700;
+  color: #0f172a !important;
+}
+
+.leaflet-control-attribution {
+  font-size: 11px !important;
+  background: rgb(255 255 255 / 0.9) !important;
 }
 
 /* Pulsing radar animation for live GPS marker */

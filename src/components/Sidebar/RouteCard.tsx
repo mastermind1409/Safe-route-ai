@@ -24,7 +24,12 @@ export default function RouteCard({ route, isSelected, onSelect }: RouteCardProp
 
     return (
         <button
-            onClick={() => onSelect(route.id)}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={(event) => {
+                event.stopPropagation();
+                onSelect(route.id);
+            }}
             className={`route-card w-full text-left p-4 rounded-lg border transition-all duration-150 ${isSelected
                     ? 'border-brand-teal bg-teal-50/40 shadow-sm'
                     : 'border-border-light bg-surface hover:border-slate-300'

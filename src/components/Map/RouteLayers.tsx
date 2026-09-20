@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Polyline, Tooltip } from 'react-leaflet';
 import type { Route } from '../../types';
 
@@ -17,28 +18,34 @@ export default function RouteLayers({
             {routes.map((route) => {
                 const isSelected = route.id === selectedRouteId;
                 return (
-                    <Polyline
-                        key={route.id}
-                        positions={route.coordinates}
-                        pathOptions={{
-                            color: route.color,
-                            weight: isSelected ? 5 : 3,
-                            opacity: isSelected ? 1 : 0.5,
-                            dashArray: route.dashArray,
-                        }}
-                        eventHandlers={{
-                            click: () => onSelectRoute(route.id),
-                        }}
-                    >
-                        <Tooltip sticky>
-                            <div className="text-xs">
-                                <span className="font-semibold">{route.name}</span>
-                                <span className="text-slate-muted ml-1">
-                                    — Score: {route.safetyScore}/100
-                                </span>
-                            </div>
-                        </Tooltip>
-                    </Polyline>
+                    <Fragment key={route.id}>
+                        {isSelected && (
+                            <Polyline
+                                positions={route.coordinates}
+                                pathOptions={{ color: '#FFFFFF', weight: 11, opacity: 0.95 }}
+                                eventHandlers={{ click: () => onSelectRoute(route.id) }}
+                            />
+                        )}
+                        <Polyline
+                            positions={route.coordinates}
+                            pathOptions={{
+                                color: route.color,
+                                weight: isSelected ? 7 : 4,
+                                opacity: isSelected ? 1 : 0.65,
+                                dashArray: isSelected ? undefined : route.dashArray,
+                            }}
+                            eventHandlers={{ click: () => onSelectRoute(route.id) }}
+                        >
+                            <Tooltip sticky>
+                                <div className="text-sm">
+                                    <span className="font-semibold">{route.name}</span>
+                                    <span className="text-slate-muted ml-1">
+                                        — Score: {route.safetyScore}/100
+                                    </span>
+                                </div>
+                            </Tooltip>
+                        </Polyline>
+                    </Fragment>
                 );
             })}
         </>
