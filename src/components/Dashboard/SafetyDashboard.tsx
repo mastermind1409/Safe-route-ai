@@ -15,7 +15,7 @@ import {
     AlertTriangle,
     Eye,
 } from 'lucide-react';
-import type { Hazard, Coordinates } from '../../types';
+import type { Hazard, Coordinates, Route } from '../../types';
 
 // ──────────────────────────────────────────────────
 // Types
@@ -35,6 +35,7 @@ interface IncidentRow {
 interface SafetyDashboardProps {
     hazards: Hazard[];
     onShowOnMap: (position: Coordinates) => void;
+    selectedRoute: Route;
 }
 
 // ──────────────────────────────────────────────────
@@ -231,11 +232,10 @@ function formatDate(dateStr: string): string {
 // ──────────────────────────────────────────────────
 // Component
 // ──────────────────────────────────────────────────
-export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboardProps) {
+export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }: SafetyDashboardProps) {
     const [filterSeverity, setFilterSeverity] = useState<string>('All');
     const [filterStatus, setFilterStatus] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
-
     // Merge seeded + live user-reported hazards into incident rows
     const allIncidents: IncidentRow[] = useMemo(() => {
         const liveIncidents: IncidentRow[] = hazards
@@ -253,6 +253,15 @@ export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboar
             }));
         return [...seededIncidents, ...liveIncidents];
     }, [hazards]);
+
+    const liveKpiCards = useMemo(
+        () => kpiCards.map((card) =>
+            card.label === 'Active Micro-Reports'
+                ? { ...card, value: `${hazards.length} Active`, subtext: `${allIncidents.length - hazards.length + 14} Resolved in last 48 hrs` }
+                : card
+        ),
+        [hazards.length, allIncidents.length]
+    );
 
     const filtered = useMemo(() => {
         return allIncidents.filter((row) => {
@@ -306,6 +315,9 @@ export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboar
                         <p className="text-sm text-slate-muted mt-0.5">
                             Ward-level infrastructure audit and incident analytics
                         </p>
+                        <p className="text-xs text-brand-teal font-medium mt-2">
+                            Live route: {selectedRoute.name} · Safety score {selectedRoute.safetyScore}/100
+                        </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <button
@@ -327,7 +339,7 @@ export default function SafetyDashboard({ hazards, onShowOnMap }: SafetyDashboar
 
                 {/* KPI Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {kpiCards.map((kpi) => {
+                    {liveKpiCards.map((kpi) => {
                         const Icon = kpi.icon;
                         return (
                             <div

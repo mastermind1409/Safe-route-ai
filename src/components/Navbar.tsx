@@ -1,4 +1,4 @@
-import { Navigation, Radio, Play, Pause, ShieldAlert, Map, BarChart3 } from 'lucide-react';
+import { Navigation, Radio, Play, Pause, ShieldAlert, Map, BarChart3, Sparkles, Eye } from 'lucide-react';
 
 export type ActiveTab = 'map' | 'dashboard';
 
@@ -9,6 +9,9 @@ interface NavbarProps {
     onToggleSimulation: () => void;
     onSOS: () => void;
     onTabChange: (tab: ActiveTab) => void;
+    onDemo: () => void;
+    highContrast: boolean;
+    onToggleContrast: () => void;
 }
 
 export default function Navbar({
@@ -18,6 +21,9 @@ export default function Navbar({
     onToggleSimulation,
     onSOS,
     onTabChange,
+    onDemo,
+    highContrast,
+    onToggleContrast,
 }: NavbarProps) {
     return (
         <header className="h-14 bg-surface border-b border-border-light flex items-center px-4 gap-4 shrink-0 z-50">
@@ -70,6 +76,29 @@ export default function Navbar({
 
             {/* Simulate Walk Toggle */}
             <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDemo(); }}
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                title="Run the guided hackathon demo"
+            >
+                <Sparkles className="w-3.5 h-3.5" />
+                Demo Mode
+            </button>
+            <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleContrast(); }}
+                aria-pressed={highContrast}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${highContrast
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-surface text-slate-body border-border-light hover:bg-slate-50'
+                    }`}
+                title="Toggle high contrast mode"
+            >
+                <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Contrast</span>
+            </button>
+            <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); onToggleSimulation(); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${simulating
                         ? 'bg-brand-teal text-white border-brand-teal'

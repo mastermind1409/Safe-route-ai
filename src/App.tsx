@@ -181,6 +181,7 @@ export default function App() {
   const [originInput, setOriginInput] = useState('T. Nagar Bus Terminus, Chennai');
   const [destinationInput, setDestinationInput] = useState('Pondy Bazaar Junction, Chennai');
   const [isPlanningRoute, setIsPlanningRoute] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
 
   // ─── Map Camera ────────────────────────────────────────────
   const [mapFlyTo, setMapFlyTo] = useState<Coordinates | null>(null);
@@ -368,6 +369,14 @@ export default function App() {
     setIsSimulating((prev) => !prev);
   }, []);
 
+  const handleDemoMode = useCallback(() => {
+    setActiveTab('map');
+    setSelectedRouteId(safeRoute.id);
+    setMapFlyTo([...safeRoute.coordinates[Math.floor(safeRoute.coordinates.length / 2)]]);
+    setIsSimulating(true);
+    addToast('Demo Mode started — watch the safe route, hazard alerts, and SOS flow.', 'info');
+  }, [addToast]);
+
   const handlePlanRoute = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!originInput.trim() || !destinationInput.trim()) {
@@ -438,7 +447,7 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-canvas">
+    <div className={`h-screen flex flex-col overflow-hidden bg-canvas ${highContrast ? 'high-contrast' : ''}`}>
       {/* Top Bar */}
       <Navbar
         gpsActive={gpsActive}
@@ -447,6 +456,9 @@ export default function App() {
         onToggleSimulation={handleToggleSimulation}
         onSOS={handleSOSTrigger}
         onTabChange={setActiveTab}
+        onDemo={handleDemoMode}
+        highContrast={highContrast}
+        onToggleContrast={() => setHighContrast((value) => !value)}
       />
 
       {/* Main Content */}
@@ -617,7 +629,7 @@ export default function App() {
           }`}
           aria-hidden={activeTab !== 'dashboard'}
         >
-          <SafetyDashboard hazards={allHazards} onShowOnMap={handleShowHazardOnMap} />
+          <SafetyDashboard hazards={allHazards} selectedRoute={selectedRoute} onShowOnMap={handleShowHazardOnMap} />
         </div>
       </div>
 

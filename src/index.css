@@ -47,6 +47,16 @@ html, body, #root {
   background: rgb(255 255 255 / 0.9) !important;
 }
 
+.high-contrast {
+  filter: contrast(1.12) saturate(1.08);
+}
+
+.high-contrast button:focus-visible,
+.high-contrast input:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}
+
 /* Pulsing radar animation for live GPS marker */
 @keyframes pulse-radar {
   0% {
