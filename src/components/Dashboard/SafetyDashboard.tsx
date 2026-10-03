@@ -8,7 +8,6 @@ import {
     Camera,
     Users,
     Download,
-    ArrowUpRight,
     ArrowRight,
     CheckCircle2,
     Search as SearchIcon,
@@ -27,9 +26,10 @@ interface IncidentRow {
     ward: string;
     severity: 'High' | 'Medium' | 'Low';
     upvotes: number;
-    status: 'Investigating' | 'Verified' | 'Resolved';
+    status: 'Submitted' | 'Investigating' | 'Verified' | 'Resolved';
     reportedAt: string;
     position: Coordinates;
+    demoData?: boolean;
 }
 
 interface SafetyDashboardProps {
@@ -39,13 +39,13 @@ interface SafetyDashboardProps {
 }
 
 // ──────────────────────────────────────────────────
-// Static KPI Data
+// Illustrative demo values, not live civic telemetry.
 // ──────────────────────────────────────────────────
 const kpiCards = [
     {
         label: 'Audited Corridor Coverage',
         value: '14.8 km',
-        subtext: '82% coverage across 6 active ward zones',
+        subtext: 'Illustrative demo value · 82% across 6 zones',
         icon: MapPin,
         accent: 'text-brand-teal',
         bg: 'bg-teal-50',
@@ -54,17 +54,16 @@ const kpiCards = [
     {
         label: 'Avg Route Safety Index',
         value: '78.4 / 100',
-        subtext: '+6.2% improvement vs last month',
+        subtext: 'Illustrative demo comparison',
         icon: Shield,
         accent: 'text-emerald-600',
         bg: 'bg-emerald-50',
         border: 'border-emerald-200',
-        trend: '+6.2%',
     },
     {
         label: 'Active Micro-Reports',
         value: '24 Active',
-        subtext: '14 Resolved in last 48 hrs',
+        subtext: 'Seeded demo records are shown below',
         icon: FileWarning,
         accent: 'text-amber-600',
         bg: 'bg-amber-50',
@@ -72,8 +71,8 @@ const kpiCards = [
     },
     {
         label: 'Emergency Dispatches',
-        value: '0 Failures',
-        subtext: 'Avg response trigger: 1.8s',
+        value: 'Demo only',
+        subtext: 'No emergency dispatch service is connected',
         icon: Zap,
         accent: 'text-brand-crimson',
         bg: 'bg-red-50',
@@ -109,7 +108,7 @@ const infraMetrics = [
 ];
 
 // ──────────────────────────────────────────────────
-// Pre-seeded incident data (merges with live hazards)
+// Pre-seeded illustrative records, never represented as live reports.
 // ──────────────────────────────────────────────────
 const seededIncidents: IncidentRow[] = [
     {
@@ -215,6 +214,7 @@ const severityColors: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
+    Submitted: 'bg-slate-100 text-slate-700',
     Investigating: 'bg-sky-100 text-sky-700',
     Verified: 'bg-amber-100 text-amber-700',
     Resolved: 'bg-emerald-100 text-emerald-700',
@@ -236,7 +236,7 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
     const [filterSeverity, setFilterSeverity] = useState<string>('All');
     const [filterStatus, setFilterStatus] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
-    // Merge seeded + live user-reported hazards into incident rows
+    // Seeded examples and locally stored reports are kept distinguishable.
     const allIncidents: IncidentRow[] = useMemo(() => {
         const liveIncidents: IncidentRow[] = hazards
             .filter((h) => h.id.startsWith('user-h-'))
@@ -244,23 +244,31 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
                 id: h.id,
                 hazardType: typeLabels[h.type] ?? h.type,
                 location: h.label,
-                ward: 'T. Nagar - Ward 173',
+                ward: 'Ward not assigned',
                 severity: (h.severity === 'high' ? 'High' : h.severity === 'moderate' ? 'Medium' : 'Low') as IncidentRow['severity'],
                 upvotes: h.upvotes,
-                status: 'Investigating' as const,
+                status: 'Submitted' as const,
                 reportedAt: h.reportedAt,
                 position: h.position,
+                demoData: false,
             }));
-        return [...seededIncidents, ...liveIncidents];
+        return [
+            ...seededIncidents.map((incident) => ({ ...incident, demoData: true })),
+            ...liveIncidents,
+        ];
     }, [hazards]);
 
     const liveKpiCards = useMemo(
         () => kpiCards.map((card) =>
             card.label === 'Active Micro-Reports'
-                ? { ...card, value: `${hazards.length} Active`, subtext: `${allIncidents.length - hazards.length + 14} Resolved in last 48 hrs` }
+                ? {
+                    ...card,
+                    value: `${hazards.filter((hazard) => hazard.id.startsWith('user-h-')).length} Active`,
+                    subtext: 'Locally saved user reports; not externally verified',
+                }
                 : card
         ),
-        [hazards.length, allIncidents.length]
+        [hazards]
     );
 
     const filtered = useMemo(() => {
@@ -274,9 +282,9 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
 
     // Export handlers
     const exportCSV = () => {
-        const header = 'Hazard Type,Location,Ward,Severity,Upvotes,Status,Reported At,Lat,Lng';
+        const header = 'Hazard Type,Location,Ward,Severity,Upvotes,Status,Reported At,Lat,Lng,Data Source,Report Scope';
         const rows = allIncidents.map((r) =>
-            `"${r.hazardType}","${r.location}","${r.ward}","${r.severity}",${r.upvotes},"${r.status}","${r.reportedAt}",${r.position[0]},${r.position[1]}`
+            `"${r.hazardType}","${r.location}","${r.ward}","${r.severity}",${r.upvotes},"${r.status}","${r.reportedAt}",${r.position[0]},${r.position[1]},"${r.demoData ? 'Illustrative demo data' : 'User report saved locally'}","${r.demoData ? 'Illustrative demo report' : 'Local report; not independently verified'}"`
         );
         const csv = [header, ...rows].join('\n');
         downloadFile(csv, 'saferoute-ward-safety-report.csv', 'text/csv');
@@ -286,6 +294,8 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
         const payload = {
             reportTitle: 'SafeRoute AI — Ward Safety Audit Report',
             generatedAt: new Date().toISOString(),
+            dataNotice: 'Demonstration dataset. Seeded incidents, ward statistics, and infrastructure values are illustrative and are not verified or live municipal records. User-submitted reports are stored locally in this browser.',
+            containsDemonstrationData: true,
             wardZones: 6,
             corridorCoverage: '14.8 km',
             avgSafetyIndex: 78.4,
@@ -298,6 +308,7 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
                 status: r.status,
                 reportedAt: r.reportedAt,
                 coordinates: { lat: r.position[0], lng: r.position[1] },
+                dataSource: r.demoData ? 'Illustrative demo data' : 'User report saved locally',
             })),
         };
         downloadFile(JSON.stringify(payload, null, 2), 'saferoute-ward-safety-report.json', 'application/json');
@@ -313,10 +324,10 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
                             Civic Safety Analytics
                         </h1>
                         <p className="text-sm text-slate-muted mt-0.5">
-                            Ward-level infrastructure audit and incident analytics
+                            Civic safety analytics demonstration
                         </p>
                         <p className="text-xs text-brand-teal font-medium mt-2">
-                            Live route: {selectedRoute.name} · Safety score {selectedRoute.safetyScore}/100
+                            Selected route: {selectedRoute.name} · Safety score {selectedRoute.safetyScoreAvailable === false ? 'Unavailable' : `${selectedRoute.safetyScore}/100 (demo signals)`}
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -337,6 +348,10 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
                     </div>
                 </div>
 
+                <div role="note" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-950">
+                    <strong>Demonstration data:</strong> Seeded incident locations/statuses, infrastructure percentages, ward coverage, and trend values are illustrative—not live or verified civic records. Reports you submit are saved only in this browser and are not sent to a municipal authority.
+                </div>
+
                 {/* KPI Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     {liveKpiCards.map((kpi) => {
@@ -351,12 +366,6 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
                                     <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center`}>
                                         <Icon className={`w-4 h-4 ${kpi.accent}`} />
                                     </div>
-                                    {kpi.trend && (
-                                        <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-                                            <ArrowUpRight className="w-3 h-3" />
-                                            {kpi.trend}
-                                        </span>
-                                    )}
                                 </div>
                                 <div>
                                     <p className="text-xl font-bold text-slate-heading">{kpi.value}</p>
@@ -443,6 +452,7 @@ export default function SafetyDashboard({ hazards, onShowOnMap, selectedRoute }:
                                     className="text-xs border border-border-light rounded-md px-2 py-1.5 bg-surface text-slate-body focus:outline-none focus:border-brand-teal"
                                 >
                                     <option value="All">All Status</option>
+                                    <option value="Submitted">Submitted</option>
                                     <option value="Investigating">Investigating</option>
                                     <option value="Verified">Verified</option>
                                     <option value="Resolved">Resolved</option>

@@ -1,5 +1,10 @@
 import type { Route, SafetyBreakdown } from '../types';
 
+export function getTimeOfDayMultiplier(date: Date = new Date()): number {
+    const hour = date.getHours();
+    return hour >= 6 && hour < 18 ? 1 : 1.5;
+}
+
 /**
  * Safety Index Formula:
  * S = max(0, min(100, 100 - Σ(wᵢ·Hᵢ) + Σ(bⱼ·Aⱼ) + L))
@@ -16,8 +21,13 @@ import type { Route, SafetyBreakdown } from '../types';
  *
  * Lighting factor (L): lightingRatio × 20
  */
-export function calculateSafetyScore(route: Route): number {
-    const hazardPenalty = route.hazards.reduce((sum, h) => sum + h.penalty, 0);
+export function calculateSafetyScore(route: Route, now: Date = new Date()): number {
+    const timeOfDayMultiplier = getTimeOfDayMultiplier(now);
+    const hazardPenalty = route.hazards.reduce((sum, h) => {
+        const isLightingHazard = h.type === 'dark_stretch' || h.type === 'broken_streetlight';
+        const penalty = isLightingHazard ? h.penalty * timeOfDayMultiplier : h.penalty;
+        return sum + penalty;
+    }, 0);
     const anchorBonus = route.safeHubs.reduce((sum, hub) => sum + hub.bonus, 0);
     const lightingFactor = route.lightingRatio * 20;
 
@@ -55,6 +65,8 @@ export function computeSafetyBreakdown(route: Route): SafetyBreakdown {
 export function recalculateRouteScore(route: Route): Route {
     return {
         ...route,
-        safetyScore: calculateSafetyScore(route),
+        safetyScore: route.safetyScoreAvailable === false
+            ? route.safetyScore
+            : calculateSafetyScore(route),
     };
 }

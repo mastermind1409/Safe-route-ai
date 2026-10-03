@@ -26,6 +26,19 @@ html, body, #root {
   color: var(--color-slate-body);
 }
 
+button,
+a,
+input,
+select,
+summary {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 3px solid #0F766E;
+  outline-offset: 2px;
+}
+
 .leaflet-container {
   height: 100%;
   width: 100%;
@@ -114,4 +127,15 @@ html, body, #root {
 .sidebar-scroll::-webkit-scrollbar-thumb {
   background-color: #CBD5E1;
   border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

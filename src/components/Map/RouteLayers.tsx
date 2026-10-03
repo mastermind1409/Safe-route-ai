@@ -40,7 +40,9 @@ export default function RouteLayers({
                                 <div className="text-sm">
                                     <span className="font-semibold">{route.name}</span>
                                     <span className="text-slate-muted ml-1">
-                                        — Score: {route.safetyScore}/100
+                                        {route.safetyScoreAvailable === false
+                                            ? ' — Safety score unavailable'
+                                            : ` — Demo safety score: ${route.safetyScore}/100`}
                                     </span>
                                 </div>
                             </Tooltip>

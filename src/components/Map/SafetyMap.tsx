@@ -47,6 +47,18 @@ export default function SafetyMap({
 
     return (
         <div className="flex-1 relative">
+            <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[min(17rem,calc(100%-5rem))] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-800">
+                    Demonstration map data
+                </p>
+                <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
+                    Sample corridors and hubs; reported hazards are community-submitted and unverified.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-700">
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Safer demo route</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-600" /> Hazard report</span>
+                </div>
+            </div>
             <MapContainer
                 center={defaultCenter}
                 zoom={defaultZoom}

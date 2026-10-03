@@ -8,15 +8,20 @@ interface RouteCardProps {
 }
 
 export default function RouteCard({ route, isSelected, onSelect }: RouteCardProps) {
+    const scoreAvailable = route.safetyScoreAvailable !== false;
     const scoreColor =
-        route.safetyScore >= 80
+        !scoreAvailable
+            ? 'text-slate-500'
+            : route.safetyScore >= 80
             ? 'text-emerald-600'
             : route.safetyScore >= 60
                 ? 'text-amber-600'
                 : 'text-red-600';
 
     const scoreBg =
-        route.safetyScore >= 80
+        !scoreAvailable
+            ? 'bg-slate-100 border-slate-200'
+            : route.safetyScore >= 80
             ? 'bg-emerald-50 border-emerald-200'
             : route.safetyScore >= 60
                 ? 'bg-amber-50 border-amber-200'
@@ -52,9 +57,10 @@ export default function RouteCard({ route, isSelected, onSelect }: RouteCardProp
                 </div>
                 <div
                     className={`flex items-center gap-1 px-2 py-1 rounded-md border text-sm font-bold ${scoreBg} ${scoreColor}`}
+                    aria-label={scoreAvailable ? `Safety score ${route.safetyScore} out of 100` : 'Safety score unavailable'}
                 >
                     <Shield className="w-3.5 h-3.5" />
-                    {route.safetyScore}
+                    {scoreAvailable ? route.safetyScore : 'Unrated'}
                 </div>
             </div>
 
@@ -85,6 +91,11 @@ export default function RouteCard({ route, isSelected, onSelect }: RouteCardProp
                     <span>{route.safeHubs.length} safe hub{route.safeHubs.length !== 1 ? 's' : ''}</span>
                 </div>
             </div>
+            {scoreAvailable && (
+                <p className="mt-2 text-[10px] text-slate-muted">
+                    Rule-based score from demonstration data
+                </p>
+            )}
         </button>
     );
 }

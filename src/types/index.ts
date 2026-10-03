@@ -31,6 +31,7 @@ export interface Route {
     walkTime: number;       // minutes
     coordinates: Coordinates[];
     safetyScore: number;
+    safetyScoreAvailable?: boolean;
     hazards: Hazard[];
     safeHubs: SafeHub[];
     lightingRatio: number;  // 0-1 fraction of illuminated segments

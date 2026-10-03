@@ -43,10 +43,31 @@ export function findNearbyHazardIds(
 }
 
 export function distanceToPolyline(position: Coordinates, coords: Coordinates[]): number {
-    return coords.reduce(
-        (closest, coordinate) => Math.min(closest, haversineDistance(position, coordinate)),
-        Number.POSITIVE_INFINITY
-    );
+    if (coords.length === 0) return Number.POSITIVE_INFINITY;
+    if (coords.length === 1) return haversineDistance(position, coords[0]);
+
+    const referenceLatitude = toRadians(position[0]);
+    const project = ([latitude, longitude]: Coordinates): Coordinates => [
+        toRadians(latitude - position[0]) * EARTH_RADIUS_METERS,
+        toRadians(longitude - position[1]) * EARTH_RADIUS_METERS * Math.cos(referenceLatitude),
+    ];
+
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 1; index < coords.length; index++) {
+        const [startX, startY] = project(coords[index - 1]);
+        const [endX, endY] = project(coords[index]);
+        const segmentX = endX - startX;
+        const segmentY = endY - startY;
+        const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+        const projection = segmentLengthSquared === 0
+            ? 0
+            : Math.max(0, Math.min(1, -(startX * segmentX + startY * segmentY) / segmentLengthSquared));
+        const nearestX = startX + projection * segmentX;
+        const nearestY = startY + projection * segmentY;
+        closestDistance = Math.min(closestDistance, Math.hypot(nearestX, nearestY));
+    }
+
+    return closestDistance;
 }
 
 /**

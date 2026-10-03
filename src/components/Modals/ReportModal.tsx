@@ -123,6 +123,10 @@ export default function ReportModal({
                     </div>
                 </div>
 
+                <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                    Reports are saved only in this browser. They are not sent to a municipal authority or independently verified.
+                </p>
+
                 {/* Actions */}
                 <div className="flex gap-2">
                     <button
@@ -136,7 +140,7 @@ export default function ReportModal({
                         disabled={!selectedPosition}
                         className="flex-1 px-4 py-2 text-sm rounded-md font-semibold bg-brand-crimson text-white hover:bg-brand-crimson-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                        Submit Report
+                        Save Report Locally
                     </button>
                 </div>
             </div>

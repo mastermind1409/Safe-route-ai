@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { ShieldAlert, X, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import type { Coordinates } from '../../types';
@@ -27,7 +27,7 @@ export default function SOSDrawer({
             dateStyle: 'medium',
             timeStyle: 'short',
         });
-        return `EMERGENCY ALERT: Walking route #SR-104. Last known GPS: [${lat}, ${lng}] at ${time}. Live Route Track: https://saferoute.app/track/live-demo`;
+        return `I may need help. My last known location was ${lat}, ${lng} at ${time}. This message was prepared in SafeRoute AI; the app has not sent it.`;
     }, [userPosition]);
 
     const handleCopy = async () => {
@@ -47,12 +47,6 @@ export default function SOSDrawer({
             setTimeout(() => setCopied(false), 2000);
         }
     };
-
-    useEffect(() => {
-        if (open && countdown <= 0) {
-            onConfirm();
-        }
-    }, [countdown, open, onConfirm]);
 
     if (!open) return null;
 
@@ -77,23 +71,23 @@ export default function SOSDrawer({
                         <ShieldAlert className="w-7 h-7 text-brand-crimson" />
                     </div>
                     <h2 className="text-lg font-bold text-slate-heading">
-                        Emergency SOS Activated
+                        Emergency Support · Demo
                     </h2>
                     <p className="text-sm text-slate-muted mt-1 text-center">
-                        An emergency dispatch will be triggered automatically.
+                        This app cannot send an emergency dispatch or notify contacts.
                     </p>
                 </div>
 
                 {/* Countdown */}
                 <div className="flex items-center justify-center mb-5">
-                    <div className="w-20 h-20 rounded-full border-4 border-brand-crimson flex items-center justify-center sos-pulse">
+                    <div className="w-20 h-20 rounded-full border-4 border-brand-crimson flex items-center justify-center">
                         <span className="text-3xl font-bold text-brand-crimson">
                             {countdown}
                         </span>
                     </div>
                 </div>
                 <p className="text-center text-xs text-slate-muted mb-5">
-                    SOS dispatches in {countdown} second{countdown !== 1 ? 's' : ''}. Press cancel to abort.
+                    Review your last known location below. The timer does not contact anyone.
                 </p>
 
                 {/* Emergency Payload */}
@@ -109,25 +103,37 @@ export default function SOSDrawer({
                         onClick={onCancel}
                         className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg border border-border-light text-slate-body hover:bg-slate-50 transition-colors"
                     >
-                        Cancel
+                        Close
                     </button>
-                    <button
-                        onClick={handleCopy}
-                        className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg bg-brand-crimson text-white hover:bg-brand-crimson-dark transition-colors flex items-center justify-center gap-2"
+                    <a
+                        href="tel:112"
+                        className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg bg-brand-crimson text-white hover:bg-brand-crimson-dark transition-colors text-center"
                     >
-                        {copied ? (
-                            <>
-                                <Check className="w-4 h-4" />
-                                Copied!
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="w-4 h-4" />
-                                Copy Emergency Payload
-                            </>
-                        )}
-                    </button>
+                        Call 112 (India)
+                    </a>
                 </div>
+                <button
+                    onClick={handleCopy}
+                    className="mt-3 w-full px-4 py-2.5 text-sm font-semibold rounded-lg border border-border-light text-slate-body hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                >
+                    {copied ? (
+                        <>
+                            <Check className="w-4 h-4" />
+                            Location text copied
+                        </>
+                    ) : (
+                        <>
+                            <Copy className="w-4 h-4" />
+                            Copy location details to share
+                        </>
+                    )}
+                </button>
+                <button
+                    onClick={onConfirm}
+                    className="mt-2 w-full px-4 py-2 text-xs font-medium text-slate-muted hover:text-slate-heading"
+                >
+                    Confirm demo locally (does not send an alert)
+                </button>
             </div>
         </div>
     );

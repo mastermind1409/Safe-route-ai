@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Map as LeafletMap } from 'leaflet';
 import type {
   Coordinates,
@@ -9,8 +9,8 @@ import type {
   EmergencyState,
 } from './types';
 import { allRoutes as initialRoutes, safeRoute } from './data/mockRoutes';
-import { findNearbyHazardIds } from './utils/haversine';
-import { recalculateRouteScore, computeSafetyBreakdown } from './utils/safetyScorer';
+import { distanceToPolyline, findNearbyHazardIds } from './utils/haversine';
+import { calculateSafetyScore, recalculateRouteScore, computeSafetyBreakdown } from './utils/safetyScorer';
 
 import Navbar from './components/Navbar';
 import type { ActiveTab } from './components/Navbar';
@@ -18,7 +18,9 @@ import SafetyMap from './components/Map/SafetyMap';
 import SafetyDashboard from './components/Dashboard/SafetyDashboard';
 import RouteCard from './components/Sidebar/RouteCard';
 import SafetyAudit from './components/Sidebar/SafetyAudit';
+import RouteInsights from './components/Sidebar/RouteInsights';
 import HazardList from './components/Sidebar/HazardList';
+import SafetyChat from './components/Common/SafetyChat';
 import ReportModal from './components/Modals/ReportModal';
 import SOSDrawer from './components/Modals/SOSDrawer';
 import Toast from './components/Common/Toast';
@@ -147,13 +149,23 @@ async function geocodePlace(value: string): Promise<{ position: Coordinates; lab
 export default function App() {
   // ─── Core State ───────────────────────────────────────────
   const mapRef = useRef<LeafletMap | null>(null);
-  const [routes, setRoutes] = useState<Route[]>(initialRoutes);
+  const [routes, setRoutes] = useState<Route[]>(() =>
+    initialRoutes.map((route) => ({
+      ...route,
+      safetyScore: calculateSafetyScore(route),
+      safetyScoreAvailable: true,
+    }))
+  );
   const [selectedRouteId, setSelectedRouteId] = useState<string>(safeRoute.id);
   const [extraHazards, setExtraHazards] = useState<Hazard[]>([]);
+  const hazardsPersistenceReady = useRef(false);
 
   // ─── GPS State ────────────────────────────────────────────
   const [userPosition, setUserPosition] = useState<Coordinates | null>(null);
   const [gpsActive, setGpsActive] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const gpsErrorNotified = useRef(false);
+  const gpsHazardAlerts = useRef<Set<string>>(new Set());
 
   // ─── Simulation State ─────────────────────────────────────
   const [isSimulating, setIsSimulating] = useState(false);
@@ -189,10 +201,10 @@ export default function App() {
   // ─── Derived ──────────────────────────────────────────────
   const selectedRoute = routes.find((r) => r.id === selectedRouteId) ?? routes[0];
   const breakdown = computeSafetyBreakdown(selectedRoute);
-  const allHazards: Hazard[] = [
-    ...routes.flatMap((r) => r.hazards),
-    ...extraHazards,
-  ];
+  const allHazards = useMemo(
+    () => [...routes.flatMap((route) => route.hazards), ...extraHazards],
+    [routes, extraHazards]
+  );
 
   // ─── Toast helper ─────────────────────────────────────────
   const addToast = useCallback(
@@ -207,21 +219,106 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const mergeHazardsIntoRoutes = useCallback((hazards: Hazard[]) => {
+    setRoutes((prev) =>
+      prev.map((route) => {
+        const routeHazards = hazards.filter((hazard) => {
+          const nearRoute = findNearbyHazardIds(
+            hazard.position,
+            route.coordinates.map((c) => ({ id: 'tmp', position: c })),
+            200
+          );
+          return nearRoute.length > 0;
+        });
+        if (routeHazards.length === 0) return route;
+
+        const existingIds = new Set(route.hazards.map((hazard) => hazard.id));
+        const newHazards = routeHazards.filter((hazard) => !existingIds.has(hazard.id));
+        if (newHazards.length === 0) return route;
+
+        return recalculateRouteScore({
+          ...route,
+          hazards: [...route.hazards, ...newHazards],
+        });
+      })
+    );
+  }, []);
+
+  useEffect(() => {
+    const storedHazards = localStorage.getItem('safe-route-ai:hazards');
+    if (!storedHazards) return;
+
+    try {
+      const hazards = JSON.parse(storedHazards) as Hazard[];
+      if (!Array.isArray(hazards)) {
+        throw new Error('Stored hazards are not an array.');
+      }
+      setExtraHazards(hazards);
+      mergeHazardsIntoRoutes(hazards);
+    } catch {
+      addToast('Saved hazard reports could not be loaded.', 'warning');
+    }
+  }, [addToast, mergeHazardsIntoRoutes]);
+
+  useEffect(() => {
+    if (!hazardsPersistenceReady.current) {
+      hazardsPersistenceReady.current = true;
+      return;
+    }
+    localStorage.setItem('safe-route-ai:hazards', JSON.stringify(extraHazards));
+  }, [extraHazards]);
+
   // ─── GPS Tracking ─────────────────────────────────────────
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      const message = 'Location services are not available in this browser.';
+      setGpsError(message);
+      if (!gpsErrorNotified.current) {
+        addToast(message, 'warning');
+        gpsErrorNotified.current = true;
+      }
+      return;
+    }
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setUserPosition([pos.coords.latitude, pos.coords.longitude]);
         setGpsActive(true);
+        setGpsError(null);
       },
-      () => {
+      (error) => {
         setGpsActive(false);
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Location permission was denied. Enable location access to use GPS tracking.'
+          : error.code === error.POSITION_UNAVAILABLE
+            ? 'Your location is currently unavailable. Check your device location settings.'
+            : 'Unable to determine your location right now.';
+        setGpsError(message);
+        if (!gpsErrorNotified.current) {
+          addToast(message, 'warning');
+          gpsErrorNotified.current = true;
+        }
       },
       { enableHighAccuracy: true, maximumAge: 1000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [addToast]);
+
+  useEffect(() => {
+    if (!userPosition) return;
+    const routeHazards = allHazards.filter(
+      (hazard) => distanceToPolyline(hazard.position, selectedRoute.coordinates) <= 200
+    );
+    const nearbyHazardIds = findNearbyHazardIds(userPosition, routeHazards, 300);
+    for (const hazardId of nearbyHazardIds) {
+      const alertKey = `${selectedRoute.id}:${hazardId}`;
+      if (gpsHazardAlerts.current.has(alertKey)) continue;
+      gpsHazardAlerts.current.add(alertKey);
+      const hazard = routeHazards.find((item) => item.id === hazardId);
+      if (hazard) {
+        addToast(`Nearby demo/local report (unverified): ${hazard.label} is within 300 m.`, 'warning');
+      }
+    }
+  }, [addToast, allHazards, selectedRoute, userPosition]);
 
   // ─── Walk Simulation ──────────────────────────────────────
   useEffect(() => {
@@ -311,26 +408,12 @@ export default function App() {
       };
 
       setExtraHazards((prev) => [...prev, newHazard]);
+      mergeHazardsIntoRoutes([newHazard]);
 
-      // Recalculate route scores if hazard is near a route
-      setRoutes((prev) =>
-        prev.map((route) => {
-          const nearRoute = findNearbyHazardIds(report.position!, route.coordinates.map((c) => ({ id: 'tmp', position: c })), 200);
-          if (nearRoute.length > 0) {
-            const updated = {
-              ...route,
-              hazards: [...route.hazards, newHazard],
-            };
-            return recalculateRouteScore(updated);
-          }
-          return route;
-        })
-      );
-
-      addToast('Hazard reported — map and safety scores updated.', 'info');
+      addToast('Report saved in this browser. It was not sent to a municipal authority or verified.', 'info');
       setPendingPinPosition(null);
     },
-    [addToast]
+    [addToast, mergeHazardsIntoRoutes]
   );
 
   const handleUpvote = useCallback((hazardId: string) => {
@@ -361,7 +444,7 @@ export default function App() {
   }, []);
 
   const handleSOSConfirm = useCallback(() => {
-    addToast('🚨 Emergency SOS dispatched! Emergency contacts notified.', 'warning');
+    addToast('Demo SOS confirmed locally. No emergency services or contacts were notified. Call your local emergency number if you need help.', 'warning');
     setSos({ active: false, countdown: 10, lastKnownPosition: null, triggeredAt: null });
   }, [addToast]);
 
@@ -403,25 +486,26 @@ export default function App() {
       const generatedRoute: Route = {
         id: 'custom-route',
         name: `${origin.label} to ${destination.label}`,
-        tag: 'Your route',
+        tag: 'Straight-line preview',
         distance: Math.round(Math.hypot(
           (destination.position[0] - origin.position[0]) * 111000,
           (destination.position[1] - origin.position[1]) * 108000
         )),
         walkTime: Math.max(1, Math.round(coordinates.length * 0.7)),
         coordinates,
-        safetyScore: 82,
+        safetyScore: 0,
+        safetyScoreAvailable: false,
         hazards: [],
         safeHubs: [],
-        lightingRatio: 0.78,
+        lightingRatio: 0,
         color: '#2563EB',
         dashArray: undefined,
-        recommended: true,
+        recommended: false,
       };
       setRoutes((previous) => [generatedRoute, ...previous.filter((route) => route.id !== generatedRoute.id)]);
       setSelectedRouteId(generatedRoute.id);
       setMapFlyTo([...origin.position]);
-      addToast('Your route is ready. Select another route below to compare.', 'success');
+      addToast('Approximate straight-line preview created. It is not a street-verified walking route, and safety data is unavailable.', 'info');
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Unable to plan this route.', 'warning');
     } finally {
@@ -448,6 +532,9 @@ export default function App() {
 
   return (
     <div className={`h-screen flex flex-col overflow-hidden bg-canvas ${highContrast ? 'high-contrast' : ''}`}>
+      <div className="sr-only" role="status" aria-live="polite">
+        {gpsError ?? ''}
+      </div>
       {/* Top Bar */}
       <Navbar
         gpsActive={gpsActive}
@@ -477,6 +564,9 @@ export default function App() {
               <h3 className="text-xs font-semibold text-slate-heading uppercase tracking-wider mb-3">
                 Route Planner
               </h3>
+              <p className="mb-3 text-xs leading-relaxed text-slate-muted">
+                Bundled corridors and safety scores are illustrative demo data. New locations produce a straight-line preview, not street directions.
+              </p>
               <form onSubmit={handlePlanRoute} className="space-y-2">
                 <label className="relative block">
                   <span className="sr-only">Starting point</span>
@@ -527,7 +617,11 @@ export default function App() {
             </div>
 
             {/* Safety Audit */}
-            <SafetyAudit breakdown={breakdown} />
+            <SafetyAudit
+              breakdown={breakdown}
+              isAvailable={selectedRoute.safetyScoreAvailable !== false}
+            />
+            <RouteInsights route={selectedRoute} hazards={allHazards} userPosition={userPosition} />
 
             {/* Report Hazard Button */}
             <button
@@ -554,6 +648,9 @@ export default function App() {
           </button>
           {sidebarOpen && (
             <div className="bg-canvas border-t border-border-light max-h-[55vh] overflow-y-auto sidebar-scroll p-4 space-y-4">
+              <p className="text-xs leading-relaxed text-slate-muted">
+                Bundled routes and safety scores are illustrative demo data. New locations produce a straight-line preview, not street directions.
+              </p>
               <form onSubmit={handlePlanRoute} className="space-y-2">
                 <label className="relative block">
                   <span className="sr-only">Starting point</span>
@@ -596,7 +693,11 @@ export default function App() {
                   />
                 ))}
               </div>
-              <SafetyAudit breakdown={breakdown} />
+              <SafetyAudit
+                breakdown={breakdown}
+                isAvailable={selectedRoute.safetyScoreAvailable !== false}
+              />
+              <RouteInsights route={selectedRoute} hazards={allHazards} userPosition={userPosition} />
               <button
                 onClick={() => setIsReportModalOpen(true)}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-brand-crimson text-brand-crimson text-sm font-semibold hover:bg-red-50 transition-colors"
@@ -632,6 +733,7 @@ export default function App() {
           <SafetyDashboard hazards={allHazards} selectedRoute={selectedRoute} onShowOnMap={handleShowHazardOnMap} />
         </div>
       </div>
+      <SafetyChat route={selectedRoute} />
 
       {/* Modals & Overlays */}
       <ReportModal

@@ -3,6 +3,7 @@ import type { SafetyBreakdown } from '../../types';
 
 interface SafetyAuditProps {
     breakdown: SafetyBreakdown;
+    isAvailable?: boolean;
 }
 
 const meters = [
@@ -11,12 +12,17 @@ const meters = [
     { key: 'commercialDensity' as const, label: 'Commercial Density', icon: Store, color: 'bg-brand-emerald' },
 ];
 
-export default function SafetyAudit({ breakdown }: SafetyAuditProps) {
+export default function SafetyAudit({ breakdown, isAvailable = true }: SafetyAuditProps) {
     return (
         <div className="bg-surface border border-border-light rounded-lg p-4">
             <h4 className="text-xs font-semibold text-slate-heading uppercase tracking-wider mb-3">
-                Safety Audit
+                Safety Signals
             </h4>
+            {!isAvailable && (
+                <p className="mb-3 text-xs leading-relaxed text-amber-800">
+                    Lighting and safe-hub data are unavailable for this approximate route preview.
+                </p>
+            )}
             <div className="flex flex-col gap-3">
                 {meters.map(({ key, label, icon: Icon, color }) => (
                     <div key={key}>
@@ -26,13 +32,13 @@ export default function SafetyAudit({ breakdown }: SafetyAuditProps) {
                                 {label}
                             </div>
                             <span className="text-xs font-semibold text-slate-heading">
-                                {breakdown[key]}%
+                                {isAvailable ? `${breakdown[key]}%` : 'N/A'}
                             </span>
                         </div>
                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                             <div
                                 className={`h-full rounded-full transition-all duration-500 ${color}`}
-                                style={{ width: `${breakdown[key]}%` }}
+                                style={{ width: isAvailable ? `${breakdown[key]}%` : '0%' }}
                             />
                         </div>
                     </div>
